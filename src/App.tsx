@@ -12,11 +12,13 @@ import {
   downloadPhoto,
   fetchMasterItems,
   fetchMullensGroups,
+  itemHasUploadedPhoto,
   updateItem,
   uploadPhotoForItem,
   type ItemInput,
   type ItemWithPhotos,
 } from "./lib/api";
+import { downloadInventoryExcel } from "./lib/exportInventoryExcel";
 import { dispositionColor, dispositionLabel, DISPOSITION_OPTIONS } from "./lib/disposition";
 import { photoPublicUrl } from "./lib/supabase";
 import type { DispositionStatus, MullensGroup } from "./types";
@@ -52,11 +54,13 @@ export default function App() {
   const [category, setCategory] = useState("");
   const [disposal, setDisposal] = useState("");
   const [dispositionFilter, setDispositionFilter] = useState("");
+  const [photoFilter, setPhotoFilter] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [editing, setEditing] = useState(false);
   const [addModalOpen, setAddModalOpen] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [uploadModalOpen, setUploadModalOpen] = useState(false);
+  const [exporting, setExporting] = useState(false);
 
   const reload = useCallback(() => {
     setLoading(true);
@@ -88,12 +92,20 @@ export default function App() {
   }, [session, tab, groups.length, groupsLoading, reloadGroups]);
 
   const categories = useMemo(() => {
-    const set = new Set(items.map((i) => i.category).filter(Boolean) as string[]);
+    const set = new Set<string>();
+    for (const i of items) {
+      const c = i.category?.trim();
+      if (c) set.add(c);
+    }
     return [...set].sort();
   }, [items]);
 
   const disposals = useMemo(() => {
-    const set = new Set(items.map((i) => i.disposal_method).filter(Boolean) as string[]);
+    const set = new Set<string>();
+    for (const i of items) {
+      const d = i.disposal_method?.trim();
+      if (d) set.add(d);
+    }
     return [...set].sort();
   }, [items]);
 
@@ -101,9 +113,11 @@ export default function App() {
     const q = search.trim().toLowerCase();
     return items
       .filter((i) => {
-        if (category && i.category !== category) return false;
-        if (disposal && i.disposal_method !== disposal) return false;
+        if (category && i.category?.trim() !== category) return false;
+        if (disposal && i.disposal_method?.trim() !== disposal) return false;
         if (dispositionFilter && i.disposition_status !== dispositionFilter) return false;
+        if (photoFilter === "missing" && itemHasUploadedPhoto(i)) return false;
+        if (photoFilter === "has" && !itemHasUploadedPhoto(i)) return false;
         if (!q) return true;
         const hay = [
           i.external_id,
@@ -120,7 +134,7 @@ export default function App() {
         return hay.includes(q);
       })
       .sort((a, b) => sortKey(a.external_id) - sortKey(b.external_id));
-  }, [items, search, category, disposal, dispositionFilter]);
+  }, [items, search, category, disposal, dispositionFilter, photoFilter]);
 
   const selected = items.find((i) => i.id === selectedId) ?? null;
 
@@ -176,6 +190,18 @@ export default function App() {
       setTab("master");
       setSelectedId(match.id);
       setEditing(false);
+    }
+  }
+
+  async function handleGenerateList() {
+    if (exporting || items.length === 0) return;
+    setExporting(true);
+    try {
+      await downloadInventoryExcel(items);
+    } catch (e) {
+      alert(e instanceof Error ? e.message : "Could not generate Excel file");
+    } finally {
+      setExporting(false);
     }
   }
 
@@ -258,6 +284,14 @@ export default function App() {
           >
             Mullens groups
           </button>
+          <button
+            type="button"
+            className="btn-ghost app-tab-export"
+            onClick={() => void handleGenerateList()}
+            disabled={exporting || items.length === 0}
+          >
+            {exporting ? "Generating…" : "Generate list"}
+          </button>
         </nav>
       </header>
 
@@ -289,7 +323,12 @@ export default function App() {
                 <option key={o.value} value={o.value}>{o.label}</option>
               ))}
             </select>
-            {(search || category || disposal || dispositionFilter) && (
+            <select value={photoFilter} onChange={(e) => setPhotoFilter(e.target.value)}>
+              <option value="">All photos</option>
+              <option value="missing">Missing images</option>
+              <option value="has">Has images</option>
+            </select>
+            {(search || category || disposal || dispositionFilter || photoFilter) && (
               <button
                 type="button"
                 className="btn-ghost"
@@ -298,6 +337,7 @@ export default function App() {
                   setCategory("");
                   setDisposal("");
                   setDispositionFilter("");
+                  setPhotoFilter("");
                 }}
               >
                 Clear filters
@@ -323,7 +363,7 @@ export default function App() {
                 <tbody>
                   {filtered.map((item) => {
                     const thumb = item.photos.find((p) => p.uploaded && p.storage_path) ?? item.photos[0];
-                    const thumbUrl = thumb ? photoPublicUrl(thumb.storage_path) : null;
+                    const thumbUrl = thumb ? photoPublicUrl(thumb.storage_path, "thumb") : null;
                     return (
                       <tr
                         key={item.id}
@@ -335,7 +375,11 @@ export default function App() {
                       >
                         <td className="num">{item.external_id ?? "—"}</td>
                         <td className="thumb-cell">
-                          {thumbUrl ? <img src={thumbUrl} alt="" className="thumb" loading="lazy" /> : <span className="no-thumb">—</span>}
+                          {thumbUrl ? (
+                            <img src={thumbUrl} alt="" className="thumb" loading="lazy" decoding="async" width={44} height={44} />
+                          ) : (
+                            <span className="no-thumb">—</span>
+                          )}
                         </td>
                         <td className="cat">{item.category ?? "—"}</td>
                         <td className="desc">{item.brief_description ?? "—"}</td>

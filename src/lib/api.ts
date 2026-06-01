@@ -16,6 +16,10 @@ function extractImgNumbers(text: string): number[] {
 
 export type ItemWithPhotos = Item & { photos: Photo[] };
 
+export function itemHasUploadedPhoto(item: ItemWithPhotos): boolean {
+  return item.photos.some((p) => p.uploaded && p.storage_path);
+}
+
 export type MullensGroupItem = Item & {
   photos: Photo[];
   master_external_id: string | null;
@@ -38,19 +42,52 @@ export type ItemInput = {
   catalog_status?: Item["catalog_status"];
 };
 
+function sortPhotos(photos: Photo[]): Photo[] {
+  return [...photos].sort((a, b) => Number(b.is_primary) - Number(a.is_primary));
+}
+
+function indexPhotosByImgNumber(photos: Photo[]): Map<number, Photo[]> {
+  const map = new Map<number, Photo[]>();
+  for (const p of photos) {
+    const list = map.get(p.img_number) ?? [];
+    list.push(p);
+    map.set(p.img_number, list);
+  }
+  return map;
+}
+
+/** Linked by item_id, or matched from photo_refs_raw when files exist but link was never set. */
+function photosForItem(item: Item, linked: Photo[], byImg: Map<number, Photo[]>): Photo[] {
+  if (linked.length) return sortPhotos(linked);
+
+  const refs = extractImgNumbers(String(item.photo_refs_raw ?? ""));
+  if (!refs.length) return [];
+
+  const seen = new Set<string>();
+  const matched: Photo[] = [];
+  for (const n of refs) {
+    for (const p of byImg.get(n) ?? []) {
+      if (p.item_id && p.item_id !== item.id) continue;
+      if (seen.has(p.id)) continue;
+      seen.add(p.id);
+      if (p.storage_path && p.uploaded) matched.push(p);
+    }
+  }
+  return sortPhotos(matched);
+}
+
 function attachPhotos<T extends Item>(items: T[], photos: Photo[] | null): (T & { photos: Photo[] })[] {
-  const byItem = new Map<string, Photo[]>();
+  const linkedByItem = new Map<string, Photo[]>();
   for (const p of photos ?? []) {
     if (!p.item_id) continue;
-    const list = byItem.get(p.item_id) ?? [];
+    const list = linkedByItem.get(p.item_id) ?? [];
     list.push(p);
-    byItem.set(p.item_id, list);
+    linkedByItem.set(p.item_id, list);
   }
+  const byImg = indexPhotosByImgNumber(photos ?? []);
   return items.map((item) => ({
     ...item,
-    photos: (byItem.get(item.id) ?? []).sort(
-      (a, b) => Number(b.is_primary) - Number(a.is_primary)
-    ),
+    photos: photosForItem(item, linkedByItem.get(item.id) ?? [], byImg),
   }));
 }
 
@@ -171,13 +208,28 @@ export async function fetchMasterItems(): Promise<ItemWithPhotos[]> {
   if (!items?.length) return [];
 
   const ids = items.map((i) => i.id);
-  const { data: photos, error: photosError } = await supabase
-    .from("photos")
-    .select("*")
-    .in("item_id", ids);
+  const imgNumbers = new Set<number>();
+  for (const item of items) {
+    for (const n of extractImgNumbers(String(item.photo_refs_raw ?? ""))) {
+      imgNumbers.add(n);
+    }
+  }
 
-  if (photosError) throw photosError;
-  return attachPhotos(items, photos);
+  const [{ data: linkedPhotos, error: linkedErr }, byImgResult] = await Promise.all([
+    supabase.from("photos").select("*").in("item_id", ids),
+    imgNumbers.size
+      ? supabase.from("photos").select("*").in("img_number", [...imgNumbers])
+      : Promise.resolve({ data: [] as Photo[], error: null }),
+  ]);
+
+  if (linkedErr) throw linkedErr;
+  if (byImgResult.error) throw byImgResult.error;
+
+  const merged = new Map<string, Photo>();
+  for (const p of [...(linkedPhotos ?? []), ...(byImgResult.data ?? [])]) {
+    merged.set(p.id, p);
+  }
+  return attachPhotos(items, [...merged.values()]);
 }
 
 export async function createItem(input: ItemInput): Promise<Item> {
@@ -352,7 +404,7 @@ export async function deletePhoto(photo: Photo): Promise<void> {
 }
 
 export async function downloadPhoto(photo: Photo): Promise<void> {
-  const url = photoPublicUrl(photo.storage_path);
+  const url = photoPublicUrl(photo.storage_path, "full");
   if (!url) throw new Error("No file in storage");
 
   const res = await fetch(url);

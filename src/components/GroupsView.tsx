@@ -56,7 +56,7 @@ export default function GroupsView({ groups, loading, onOpenMaster }: Props) {
       ) : (
         <div className="groups-grid">
           {filtered.map((group) => {
-            const photoUrl = group.storage_path ? photoPublicUrl(group.storage_path) : null;
+            const photoUrl = group.storage_path ? photoPublicUrl(group.storage_path, "preview") : null;
             return (
               <button
                 key={group.group_number}

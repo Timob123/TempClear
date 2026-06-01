@@ -44,7 +44,6 @@ export default function ItemForm({
     initial?.disposition_status ?? "at_cragleigh"
   );
   const [description, setDescription] = useState(initial?.brief_description ?? "");
-  const [comments, setComments] = useState(initial?.comments ?? "");
   const [photoRefs, setPhotoRefs] = useState(initial?.photo_refs_raw ?? generatedIds?.photoRef ?? "");
   const [pendingFiles, setPendingFiles] = useState<File[]>([]);
   const [busy, setBusy] = useState(false);
@@ -85,7 +84,6 @@ export default function ItemForm({
           disposal_method: resolveDisposal() || null,
           disposition_status: dispositionStatus,
           brief_description: description.trim() || null,
-          comments: comments.trim() || null,
           photo_refs_raw: photoRefs.trim() || null,
           catalog_status: hasPhoto ? "catalogued" : "missing_photo",
         },
@@ -174,10 +172,6 @@ export default function ItemForm({
         <label className="span-2">
           Description
           <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={3} required />
-        </label>
-        <label className="span-2">
-          Comments
-          <textarea value={comments} onChange={(e) => setComments(e.target.value)} rows={2} />
         </label>
       </div>
 

@@ -179,12 +179,13 @@ export default function ItemViewModal({
             {item.photos.length > 0 ? (
               <div className="gallery">
                 {item.photos.map((p) => {
-                  const url = photoPublicUrl(p.storage_path);
-                  if (!url) return null;
+                  const preview = photoPublicUrl(p.storage_path, "preview");
+                  const full = photoPublicUrl(p.storage_path, "full");
+                  if (!preview) return null;
                   return (
                     <div key={p.id} className="gallery-item">
-                      <a href={url} target="_blank" rel="noreferrer">
-                        <img src={url} alt={`IMG ${p.img_number}`} />
+                      <a href={full ?? preview} target="_blank" rel="noreferrer">
+                        <img src={preview} alt={`IMG ${p.img_number}`} loading="lazy" decoding="async" />
                       </a>
                       <span>IMG_{p.img_number}</span>
                       <div className="gallery-btns">

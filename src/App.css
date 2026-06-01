@@ -389,9 +389,16 @@
 
 .app-tabs {
   display: flex;
+  flex-wrap: wrap;
+  align-items: center;
   gap: 0.35rem;
   margin: 0.75rem 0 0;
   width: 100%;
+}
+
+.app-tab-export {
+  margin-left: auto;
+  font-size: 0.88rem;
 }
 
 .app-tab {

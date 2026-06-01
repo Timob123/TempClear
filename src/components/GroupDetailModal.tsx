@@ -31,7 +31,7 @@ export default function GroupDetailModal({ group, open, onClose, onOpenMaster }:
 
   if (!open || !group) return null;
 
-  const groupPhotoUrl = group.storage_path ? photoPublicUrl(group.storage_path) : null;
+  const groupPhotoUrl = group.storage_path ? photoPublicUrl(group.storage_path, "preview") : null;
 
   return (
     <div
@@ -78,7 +78,7 @@ export default function GroupDetailModal({ group, open, onClose, onOpenMaster }:
               <tbody>
                 {items.map((item) => {
                   const thumb = item.photos.find((p) => p.uploaded && p.storage_path) ?? item.photos[0];
-                  const thumbUrl = thumb ? photoPublicUrl(thumb.storage_path) : null;
+                  const thumbUrl = thumb ? photoPublicUrl(thumb.storage_path, "thumb") : null;
                   return (
                     <tr key={item.id}>
                       <td className="thumb-cell">

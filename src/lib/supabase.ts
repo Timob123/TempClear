@@ -8,7 +8,34 @@ const key =
 
 export const supabase = createClient(url, key);
 
-export function photoPublicUrl(storagePath: string | null): string | null {
+export type PhotoImageSize = "thumb" | "preview" | "full";
+
+const RENDER: Record<Exclude<PhotoImageSize, "full">, { width: number; height: number; quality: number }> = {
+  thumb: { width: 88, height: 88, quality: 75 },
+  preview: { width: 480, height: 480, quality: 80 },
+};
+
+/** Public storage URL; use thumb/preview in lists — full originals are ~1–3MB each. */
+export function photoPublicUrl(
+  storagePath: string | null,
+  size: PhotoImageSize = "full"
+): string | null {
   if (!storagePath) return null;
-  return `${url}/storage/v1/object/public/inventory-photos/${storagePath}`;
+  const encoded = storagePath
+    .split("/")
+    .map((s) => encodeURIComponent(s))
+    .join("/");
+
+  if (size === "full") {
+    return `${url}/storage/v1/object/public/inventory-photos/${encoded}`;
+  }
+
+  const { width, height, quality } = RENDER[size];
+  const params = new URLSearchParams({
+    width: String(width),
+    height: String(height),
+    resize: "cover",
+    quality: String(quality),
+  });
+  return `${url}/storage/v1/render/image/public/inventory-photos/${encoded}?${params}`;
 }
