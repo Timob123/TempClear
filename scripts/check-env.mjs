@@ -1,12 +1,20 @@
-/** Fail Vercel builds when Supabase env vars were not set in project settings. */
+import { resolveSupabaseEnv } from "./resolve-env.mjs";
+
 const onVercel = process.env.VERCEL === "1";
-const url = process.env.VITE_SUPABASE_URL?.trim();
-const key = process.env.VITE_SUPABASE_PUBLISHABLE_KEY?.trim();
+const { url, key } = resolveSupabaseEnv("production");
 
 if (onVercel && (!url || !key)) {
-  console.error(
-    "\n[build] Missing VITE_SUPABASE_URL or VITE_SUPABASE_PUBLISHABLE_KEY.\n" +
-      "Add them in Vercel → Project → Settings → Environment Variables, then redeploy.\n"
-  );
+  console.error(`
+[build] Missing Supabase environment variables.
+
+Add in Vercel → Settings → Environment Variables (Production):
+
+  VITE_SUPABASE_URL=https://crulqsufbijcfdskggkz.supabase.co
+  VITE_SUPABASE_PUBLISHABLE_KEY=<your publishable key>
+
+(Also accepted: SUPABASE_URL and SUPABASE_PUBLISHABLE_KEY)
+
+Then Redeploy — Vite embeds these at build time.
+`);
   process.exit(1);
 }
