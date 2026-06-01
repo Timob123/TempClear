@@ -4,16 +4,20 @@
 
 1. Import [Timob123/TempClear](https://github.com/Timob123/TempClear) in [Vercel](https://vercel.com/new) (root directory is the repo root — this app lives at the repo root).
 
-2. **Environment variables** (Project → Settings → Environment Variables):
+2. **Environment variables** (required — without these you get blank pages or 404s in the console):
+
+   Vercel → **Settings → Environment Variables** → add for **Production** (and Preview if you use it):
 
    | Name | Value |
    |------|--------|
    | `VITE_SUPABASE_URL` | `https://crulqsufbijcfdskggkz.supabase.co` |
-   | `VITE_SUPABASE_PUBLISHABLE_KEY` | Supabase publishable key |
+   | `VITE_SUPABASE_PUBLISHABLE_KEY` | Supabase **publishable** key (Dashboard → API keys) |
 
-3. Deploy. Copy your production URL (e.g. `https://temp-clear.vercel.app`).
+3. **Redeploy** after saving env vars (Deployments → ⋯ → Redeploy). Vite bakes these in at build time.
 
-4. **Supabase** → Authentication → URL configuration:
+4. Use your production URL (e.g. `https://temp-clear.vercel.app`), not the old GitHub Pages link.
+
+5. **Supabase** → Authentication → URL configuration:
    - **Site URL:** your Vercel URL (with trailing slash)
    - **Redirect URLs:** `https://your-app.vercel.app/**`
 
