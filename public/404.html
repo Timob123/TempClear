@@ -1,0 +1,19 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Cragleigh Inventory</title>
+    <script>
+      (function () {
+        var base = "/TempClear/";
+        var path =
+          sessionStorage.getItem("gh-pages-redirect") ||
+          location.pathname.replace(base, "/") + location.search + location.hash;
+        sessionStorage.removeItem("gh-pages-redirect");
+        sessionStorage.setItem("gh-pages-redirect", path);
+        location.replace(base);
+      })();
+    </script>
+  </head>
+  <body></body>
+</html>
