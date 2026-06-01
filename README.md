@@ -1,29 +1,29 @@
-# Cragleigh Inventory (TempClear)
+# Cragleigh Inventory
 
-## GitHub Pages deploy
+## Deploy on Vercel
 
-GitHub’s Pages screen now asks you to pick a **workflow** (not a branch). Use ours.
+1. Import [Timob123/TempClear](https://github.com/Timob123/TempClear) in [Vercel](https://vercel.com/new) (root directory is the repo root — this app lives at the repo root).
 
-### One-time setup
+2. **Environment variables** (Project → Settings → Environment Variables):
 
-1. **Actions secret:** [Secrets → Actions](https://github.com/Timob123/TempClear/settings/secrets/actions) → `VITE_SUPABASE_PUBLISHABLE_KEY` = Supabase publishable key.
+   | Name | Value |
+   |------|--------|
+   | `VITE_SUPABASE_URL` | `https://crulqsufbijcfdskggkz.supabase.co` |
+   | `VITE_SUPABASE_PUBLISHABLE_KEY` | Supabase publishable key |
 
-2. **Link Pages to the workflow** — [Settings → Pages](https://github.com/Timob123/TempClear/settings/pages)  
-   - Under **Build and deployment**, click **Browse all workflows** (not Jekyll / Static HTML).  
-   - Choose **Deploy to GitHub Pages** → **Configure** (or enable if shown).  
-   - Or: [Actions](https://github.com/Timob123/TempClear/actions/workflows/deploy-pages.yml) → **Run workflow** on `main`.
+3. Deploy. Copy your production URL (e.g. `https://temp-clear.vercel.app`).
 
-3. Wait for a green run (build + deploy). The Pages settings page should then show your site URL.
+4. **Supabase** → Authentication → URL configuration:
+   - **Site URL:** your Vercel URL (with trailing slash)
+   - **Redirect URLs:** `https://your-app.vercel.app/**`
 
-4. **Supabase Auth** URLs: `https://timob123.github.io/TempClear/` and `https://timob123.github.io/TempClear/**`
-
-**Live URL:** https://timob123.github.io/TempClear/
+GitHub Pages is no longer used; you can disable Pages under repo Settings if you like.
 
 ### Local dev
 
 ```bash
 npm ci
-cp .env.example .env   # add your publishable key
+cp .env.example .env   # add publishable key
 npm run dev
 ```
 
