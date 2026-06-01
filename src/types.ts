@@ -29,6 +29,17 @@ export type Item = {
   catalog_status: CatalogStatus;
   photo_refs_raw: string | null;
   source_sheet: string;
+  mullens_item_no?: number | null;
+  master_item_id?: number | null;
+  group_number?: number | null;
+};
+
+export type MullensGroup = {
+  group_number: number;
+  title: string;
+  notes: string | null;
+  storage_path: string | null;
+  item_count: number;
 };
 
 export type Photo = {

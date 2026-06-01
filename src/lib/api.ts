@@ -1,5 +1,5 @@
 import { supabase, photoPublicUrl } from "./supabase";
-import type { DispositionStatus, Item, Photo } from "../types";
+import type { DispositionStatus, Item, MullensGroup, Photo } from "../types";
 
 const IMG_RE = /IMG[_\s]?(\d+)/i;
 
@@ -16,6 +16,17 @@ function extractImgNumbers(text: string): number[] {
 
 export type ItemWithPhotos = Item & { photos: Photo[] };
 
+export type MullensGroupItem = Item & {
+  photos: Photo[];
+  master_external_id: string | null;
+};
+
+export type MasterMullensLink = {
+  group_number: number;
+  group_title: string;
+  mullens_item_no: number | null;
+};
+
 export type ItemInput = {
   external_id?: string | null;
   category?: string | null;
@@ -26,6 +37,128 @@ export type ItemInput = {
   photo_refs_raw?: string | null;
   catalog_status?: Item["catalog_status"];
 };
+
+function attachPhotos<T extends Item>(items: T[], photos: Photo[] | null): (T & { photos: Photo[] })[] {
+  const byItem = new Map<string, Photo[]>();
+  for (const p of photos ?? []) {
+    if (!p.item_id) continue;
+    const list = byItem.get(p.item_id) ?? [];
+    list.push(p);
+    byItem.set(p.item_id, list);
+  }
+  return items.map((item) => ({
+    ...item,
+    photos: (byItem.get(item.id) ?? []).sort(
+      (a, b) => Number(b.is_primary) - Number(a.is_primary)
+    ),
+  }));
+}
+
+export async function fetchMullensGroups(): Promise<MullensGroup[]> {
+  const { data, error } = await supabase
+    .from("mullens_groups_summary")
+    .select("*")
+    .order("group_number", { ascending: true });
+  if (error) throw error;
+  return (data ?? []) as MullensGroup[];
+}
+
+export async function fetchMullensGroupItems(groupNumber: number): Promise<MullensGroupItem[]> {
+  const { data: mullensItems, error: itemsError } = await supabase
+    .from("items")
+    .select("*")
+    .eq("source_sheet", "mullens")
+    .eq("group_number", groupNumber)
+    .order("mullens_item_no", { ascending: true });
+  if (itemsError) throw itemsError;
+  if (!mullensItems?.length) return [];
+
+  const masterNums = [
+    ...new Set(
+      mullensItems.map((i) => i.master_item_id).filter((n): n is number => n != null)
+    ),
+  ];
+  const masterByNum = new Map<number, ItemWithPhotos>();
+
+  if (masterNums.length) {
+    const { data: masters, error: masterErr } = await supabase
+      .from("items")
+      .select("*")
+      .eq("source_sheet", "master");
+    if (masterErr) throw masterErr;
+    const masterIds = (masters ?? [])
+      .filter((m) => {
+        const n = parseInt(String(m.external_id ?? ""), 10);
+        return !Number.isNaN(n) && masterNums.includes(n);
+      })
+      .map((m) => m.id);
+
+    let masterPhotos: Photo[] = [];
+    if (masterIds.length) {
+      const { data: photos, error: photosErr } = await supabase
+        .from("photos")
+        .select("*")
+        .in("item_id", masterIds);
+      if (photosErr) throw photosErr;
+      masterPhotos = photos ?? [];
+    }
+
+    for (const m of attachPhotos(masters ?? [], masterPhotos)) {
+      const n = parseInt(String(m.external_id ?? ""), 10);
+      if (!Number.isNaN(n)) masterByNum.set(n, m);
+    }
+  }
+
+  const mullensIds = mullensItems.map((i) => i.id);
+  const { data: mPhotos, error: mPhotosErr } = await supabase
+    .from("photos")
+    .select("*")
+    .in("item_id", mullensIds);
+  if (mPhotosErr) throw mPhotosErr;
+  const withOwnPhotos = attachPhotos(mullensItems, mPhotos ?? []);
+
+  return withOwnPhotos.map((item) => {
+    const master =
+      item.master_item_id != null ? masterByNum.get(item.master_item_id) : undefined;
+    const photos = item.photos.length ? item.photos : (master?.photos ?? []);
+    return {
+      ...item,
+      photos,
+      master_external_id: master?.external_id ?? null,
+    };
+  });
+}
+
+export async function fetchMullensLinksForMaster(
+  externalId: string | null
+): Promise<MasterMullensLink[]> {
+  const n = parseInt(String(externalId ?? ""), 10);
+  if (Number.isNaN(n)) return [];
+
+  const { data: mullensRows, error } = await supabase
+    .from("items")
+    .select("group_number, mullens_item_no")
+    .eq("source_sheet", "mullens")
+    .eq("master_item_id", n);
+  if (error) throw error;
+  if (!mullensRows?.length) return [];
+
+  const groupNums = [...new Set(mullensRows.map((r) => r.group_number).filter((g): g is number => g != null))];
+  const { data: groups, error: gErr } = await supabase
+    .from("mullens_groups")
+    .select("group_number, title")
+    .in("group_number", groupNums);
+  if (gErr) throw gErr;
+  const titleByGroup = new Map((groups ?? []).map((g) => [g.group_number, g.title as string]));
+
+  return mullensRows
+    .filter((r) => r.group_number != null)
+    .map((r) => ({
+      group_number: r.group_number as number,
+      group_title: titleByGroup.get(r.group_number as number) ?? `Group ${r.group_number}`,
+      mullens_item_no: r.mullens_item_no,
+    }));
+}
 
 export async function fetchMasterItems(): Promise<ItemWithPhotos[]> {
   const { data: items, error: itemsError } = await supabase
@@ -44,21 +177,7 @@ export async function fetchMasterItems(): Promise<ItemWithPhotos[]> {
     .in("item_id", ids);
 
   if (photosError) throw photosError;
-
-  const byItem = new Map<string, Photo[]>();
-  for (const p of photos ?? []) {
-    if (!p.item_id) continue;
-    const list = byItem.get(p.item_id) ?? [];
-    list.push(p);
-    byItem.set(p.item_id, list);
-  }
-
-  return items.map((item) => ({
-    ...item,
-    photos: (byItem.get(item.id) ?? []).sort(
-      (a, b) => Number(b.is_primary) - Number(a.is_primary)
-    ),
-  }));
+  return attachPhotos(items, photos);
 }
 
 export async function createItem(input: ItemInput): Promise<Item> {

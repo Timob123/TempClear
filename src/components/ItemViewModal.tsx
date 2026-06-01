@@ -1,8 +1,9 @@
 import ItemForm from "./ItemForm";
+import { useEffect, useState } from "react";
+import { fetchMullensLinksForMaster, type ItemInput, type ItemWithPhotos, type MasterMullensLink } from "../lib/api";
 import { dispositionColor, dispositionLabel, DISPOSITION_OPTIONS } from "../lib/disposition";
 import { photoPublicUrl } from "../lib/supabase";
 import type { DispositionStatus } from "../types";
-import type { ItemInput, ItemWithPhotos } from "../lib/api";
 import type { Photo } from "../types";
 import "./ImageUploadModal.css";
 
@@ -46,6 +47,18 @@ export default function ItemViewModal({
   onDownloadPhoto,
   onRemovePhoto,
 }: Props) {
+  const [mullensLinks, setMullensLinks] = useState<MasterMullensLink[]>([]);
+
+  useEffect(() => {
+    if (!item?.external_id) {
+      setMullensLinks([]);
+      return;
+    }
+    fetchMullensLinksForMaster(item.external_id)
+      .then(setMullensLinks)
+      .catch(() => setMullensLinks([]));
+  }, [item?.id, item?.external_id]);
+
   if (!open || !item) return null;
 
   return (
@@ -120,6 +133,27 @@ export default function ItemViewModal({
               <dd>
                 <code>{item.photo_refs_raw ?? "—"}</code>
               </dd>
+              {mullensLinks.length > 0 && (
+                <>
+                  <dt>Mullens group</dt>
+                  <dd>
+                    <ul className="mullens-link-list">
+                      {mullensLinks.map((link) => (
+                        <li key={`${link.group_number}-${link.mullens_item_no ?? ""}`}>
+                          <span className="disposal-badge mullens-group-badge">
+                            Group {link.group_number}
+                          </span>
+                          {" "}
+                          {link.group_title}
+                          {link.mullens_item_no != null && (
+                            <span className="muted"> · Mullens #{link.mullens_item_no}</span>
+                          )}
+                        </li>
+                      ))}
+                    </ul>
+                  </dd>
+                </>
+              )}
               {item.comments && (
                 <>
                   <dt>Comments</dt>

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import GroupsView from "./components/GroupsView";
 import Login from "./components/Login";
 import ImageUploadModal from "./components/ImageUploadModal";
 import ItemModal from "./components/ItemModal";
@@ -10,6 +11,7 @@ import {
   deletePhoto,
   downloadPhoto,
   fetchMasterItems,
+  fetchMullensGroups,
   updateItem,
   uploadPhotoForItem,
   type ItemInput,
@@ -17,7 +19,9 @@ import {
 } from "./lib/api";
 import { dispositionColor, dispositionLabel, DISPOSITION_OPTIONS } from "./lib/disposition";
 import { photoPublicUrl } from "./lib/supabase";
-import type { DispositionStatus } from "./types";
+import type { DispositionStatus, MullensGroup } from "./types";
+
+type AppTab = "master" | "groups";
 import "./App.css";
 
 function sortKey(externalId: string | null): number {
@@ -38,8 +42,11 @@ function disposalColor(method: string | null): string {
 
 export default function App() {
   const { loading: authLoading, session, isAdmin, signOut, role } = useAuth();
+  const [tab, setTab] = useState<AppTab>("master");
   const [items, setItems] = useState<ItemWithPhotos[]>([]);
+  const [groups, setGroups] = useState<MullensGroup[]>([]);
   const [loading, setLoading] = useState(true);
+  const [groupsLoading, setGroupsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState("");
@@ -53,15 +60,32 @@ export default function App() {
 
   const reload = useCallback(() => {
     setLoading(true);
-    fetchMasterItems()
-      .then(setItems)
+    Promise.all([fetchMasterItems(), fetchMullensGroups()])
+      .then(([master, mullensGroups]) => {
+        setItems(master);
+        setGroups(mullensGroups);
+      })
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false));
+  }, []);
+
+  const reloadGroups = useCallback(() => {
+    setGroupsLoading(true);
+    fetchMullensGroups()
+      .then(setGroups)
+      .catch((e) => setError(e.message))
+      .finally(() => setGroupsLoading(false));
   }, []);
 
   useEffect(() => {
     if (session) reload();
   }, [session, reload]);
+
+  useEffect(() => {
+    if (session && tab === "groups" && groups.length === 0 && !groupsLoading) {
+      reloadGroups();
+    }
+  }, [session, tab, groups.length, groupsLoading, reloadGroups]);
 
   const categories = useMemo(() => {
     const set = new Set(items.map((i) => i.category).filter(Boolean) as string[]);
@@ -146,6 +170,15 @@ export default function App() {
     setEditing(false);
   }
 
+  function openMasterByExternalId(externalId: string) {
+    const match = items.find((i) => i.external_id === externalId);
+    if (match) {
+      setTab("master");
+      setSelectedId(match.id);
+      setEditing(false);
+    }
+  }
+
   async function handleUpload(files: File[]) {
     if (!selected || !files.length) return;
     setUploading(true);
@@ -191,15 +224,16 @@ export default function App() {
   return (
     <div className="app">
       <header className="header">
-        <div>
-          <h1>Cragleigh Inventory</h1>
-          <p className="subtitle">
-            Master list
-            {role === "admin" ? " · Admin" : " · View only"}
-          </p>
-        </div>
-        <div className="header-actions">
-          {isAdmin && (
+        <div className="header-top">
+          <div>
+            <h1>Cragleigh Inventory</h1>
+            <p className="subtitle">
+              {tab === "master" ? "Master inventory list" : "Mullens auction groups (tab 2)"}
+              {role === "admin" ? " · Admin" : " · View only"}
+            </p>
+          </div>
+          <div className="header-actions">
+          {isAdmin && tab === "master" && (
             <button type="button" className="btn-primary-inline" onClick={() => { setAddModalOpen(true); setEditing(false); }}>
               + Add item
             </button>
@@ -207,110 +241,135 @@ export default function App() {
           <button type="button" className="btn-ghost" onClick={() => signOut()}>
             Sign out
           </button>
+          </div>
         </div>
-      </header>
-
-      <section className="toolbar">
-        <input
-          type="search"
-          placeholder="Search description, category, disposal, IMG…"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="search"
-        />
-        <select value={category} onChange={(e) => setCategory(e.target.value)}>
-          <option value="">All categories</option>
-          {categories.map((c) => (
-            <option key={c} value={c}>{c}</option>
-          ))}
-        </select>
-        <select value={disposal} onChange={(e) => setDisposal(e.target.value)}>
-          <option value="">All disposal</option>
-          {disposals.map((d) => (
-            <option key={d} value={d}>{d}</option>
-          ))}
-        </select>
-        <select value={dispositionFilter} onChange={(e) => setDispositionFilter(e.target.value)}>
-          <option value="">All statuses</option>
-          {DISPOSITION_OPTIONS.map((o) => (
-            <option key={o.value} value={o.value}>{o.label}</option>
-          ))}
-        </select>
-        {(search || category || disposal || dispositionFilter) && (
+        <nav className="app-tabs" aria-label="Inventory views">
           <button
             type="button"
-            className="btn-ghost"
-            onClick={() => {
-              setSearch("");
-              setCategory("");
-              setDisposal("");
-              setDispositionFilter("");
-            }}
+            className={tab === "master" ? "app-tab app-tab--active" : "app-tab"}
+            onClick={() => setTab("master")}
           >
-            Clear filters
+            Master list
           </button>
-        )}
-      </section>
+          <button
+            type="button"
+            className={tab === "groups" ? "app-tab app-tab--active" : "app-tab"}
+            onClick={() => setTab("groups")}
+          >
+            Mullens groups
+          </button>
+        </nav>
+      </header>
 
-      <main className="list list--full">
-          {filtered.length === 0 ? (
-            <p className="muted empty">No items match your filters.</p>
-          ) : (
-            <table className="table">
-              <thead>
-                <tr>
-                  <th>#</th>
-                  <th></th>
-                  <th>Category</th>
-                  <th>Description</th>
-                  <th>Disposal</th>
-                  <th>Status</th>
-                  <th>Photo</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filtered.map((item) => {
-                  const thumb = item.photos.find((p) => p.uploaded && p.storage_path) ?? item.photos[0];
-                  const thumbUrl = thumb ? photoPublicUrl(thumb.storage_path) : null;
-                  return (
-                    <tr
-                      key={item.id}
-                      className={selectedId === item.id ? "row--active" : ""}
-                      onClick={() => {
-                        setSelectedId(item.id);
-                        setEditing(false);
-                      }}
-                    >
-                      <td className="num">{item.external_id ?? "—"}</td>
-                      <td className="thumb-cell">
-                        {thumbUrl ? <img src={thumbUrl} alt="" className="thumb" loading="lazy" /> : <span className="no-thumb">—</span>}
-                      </td>
-                      <td className="cat">{item.category ?? "—"}</td>
-                      <td className="desc">{item.brief_description ?? "—"}</td>
-                      <td>
-                        <span className="disposal-badge" style={{ backgroundColor: `${disposalColor(item.disposal_method)}18`, color: disposalColor(item.disposal_method) }}>
-                          {item.disposal_method ?? "—"}
-                        </span>
-                      </td>
-                      <td>
-                        <span
-                          className="disposal-badge"
-                          style={{
-                            backgroundColor: `${dispositionColor(item.disposition_status)}18`,
-                            color: dispositionColor(item.disposition_status),
-                          }}
-                        >
-                          {dispositionLabel(item.disposition_status)}
-                        </span>
-                      </td>
-                      <td className="photo-ref"><code>{item.photo_refs_raw ?? "—"}</code></td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          )}
-      </main>
+      {tab === "master" ? (
+        <>
+          <section className="toolbar">
+            <input
+              type="search"
+              placeholder="Search description, category, disposal, IMG…"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="search"
+            />
+            <select value={category} onChange={(e) => setCategory(e.target.value)}>
+              <option value="">All categories</option>
+              {categories.map((c) => (
+                <option key={c} value={c}>{c}</option>
+              ))}
+            </select>
+            <select value={disposal} onChange={(e) => setDisposal(e.target.value)}>
+              <option value="">All disposal</option>
+              {disposals.map((d) => (
+                <option key={d} value={d}>{d}</option>
+              ))}
+            </select>
+            <select value={dispositionFilter} onChange={(e) => setDispositionFilter(e.target.value)}>
+              <option value="">All statuses</option>
+              {DISPOSITION_OPTIONS.map((o) => (
+                <option key={o.value} value={o.value}>{o.label}</option>
+              ))}
+            </select>
+            {(search || category || disposal || dispositionFilter) && (
+              <button
+                type="button"
+                className="btn-ghost"
+                onClick={() => {
+                  setSearch("");
+                  setCategory("");
+                  setDisposal("");
+                  setDispositionFilter("");
+                }}
+              >
+                Clear filters
+              </button>
+            )}
+          </section>
+
+          <main className="list list--full">
+            {filtered.length === 0 ? (
+              <p className="muted empty">No items match your filters.</p>
+            ) : (
+              <table className="table">
+                <thead>
+                  <tr>
+                    <th>#</th>
+                    <th></th>
+                    <th>Category</th>
+                    <th>Description</th>
+                    <th>Disposal</th>
+                    <th>Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filtered.map((item) => {
+                    const thumb = item.photos.find((p) => p.uploaded && p.storage_path) ?? item.photos[0];
+                    const thumbUrl = thumb ? photoPublicUrl(thumb.storage_path) : null;
+                    return (
+                      <tr
+                        key={item.id}
+                        className={selectedId === item.id ? "row--active" : ""}
+                        onClick={() => {
+                          setSelectedId(item.id);
+                          setEditing(false);
+                        }}
+                      >
+                        <td className="num">{item.external_id ?? "—"}</td>
+                        <td className="thumb-cell">
+                          {thumbUrl ? <img src={thumbUrl} alt="" className="thumb" loading="lazy" /> : <span className="no-thumb">—</span>}
+                        </td>
+                        <td className="cat">{item.category ?? "—"}</td>
+                        <td className="desc">{item.brief_description ?? "—"}</td>
+                        <td>
+                          <span className="disposal-badge" style={{ backgroundColor: `${disposalColor(item.disposal_method)}18`, color: disposalColor(item.disposal_method) }}>
+                            {item.disposal_method ?? "—"}
+                          </span>
+                        </td>
+                        <td>
+                          <span
+                            className="disposal-badge"
+                            style={{
+                              backgroundColor: `${dispositionColor(item.disposition_status)}18`,
+                              color: dispositionColor(item.disposition_status),
+                            }}
+                          >
+                            {dispositionLabel(item.disposition_status)}
+                          </span>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            )}
+          </main>
+        </>
+      ) : (
+        <GroupsView
+          groups={groups}
+          loading={groupsLoading || loading}
+          onOpenMaster={openMasterByExternalId}
+        />
+      )}
 
       <ItemViewModal
         item={selected}
