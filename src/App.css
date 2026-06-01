@@ -157,18 +157,6 @@
   color: #a33;
 }
 
-.config-error {
-  max-width: 420px;
-  padding: 1.5rem;
-  text-align: center;
-}
-
-.config-error h1 {
-  margin: 0 0 0.75rem;
-  font-size: 1.25rem;
-  color: var(--accent);
-}
-
 .toolbar {
   display: flex;
   flex-wrap: wrap;

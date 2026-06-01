@@ -18,7 +18,7 @@ import {
   type ItemWithPhotos,
 } from "./lib/api";
 import { dispositionColor, dispositionLabel, DISPOSITION_OPTIONS } from "./lib/disposition";
-import { configError, photoPublicUrl, supabaseConfigured } from "./lib/supabase";
+import { photoPublicUrl } from "./lib/supabase";
 import type { DispositionStatus, MullensGroup } from "./types";
 import "./App.css";
 
@@ -41,20 +41,6 @@ function disposalColor(method: string | null): string {
 }
 
 export default function App() {
-  if (!supabaseConfigured && configError) {
-    return (
-      <div className="app app--center">
-        <div className="config-error">
-          <h1>Configuration required</h1>
-          <p>{configError}</p>
-          <p className="muted">
-            Vercel → Settings → Environment Variables → add both vars for Production → Redeploy.
-          </p>
-        </div>
-      </div>
-    );
-  }
-
   const { loading: authLoading, session, isAdmin, signOut, role } = useAuth();
   const [tab, setTab] = useState<AppTab>("master");
   const [items, setItems] = useState<ItemWithPhotos[]>([]);
