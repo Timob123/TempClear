@@ -2,33 +2,22 @@
 
 ## GitHub Pages deploy
 
-The site is **not live until you turn on Pages once** in GitHub settings. The workflow pushes built files to the `gh-pages` branch.
+GitHub’s Pages screen now asks you to pick a **workflow** (not a branch). Use ours.
 
-### One-time setup (do this in order)
+### One-time setup
 
-1. **Add Actions secret**  
-   [Secrets → Actions](https://github.com/Timob123/TempClear/settings/secrets/actions) → **New repository secret**  
-   - Name: `VITE_SUPABASE_PUBLISHABLE_KEY`  
-   - Value: Supabase **publishable** key (from Dashboard → API keys)
+1. **Actions secret:** [Secrets → Actions](https://github.com/Timob123/TempClear/settings/secrets/actions) → `VITE_SUPABASE_PUBLISHABLE_KEY` = Supabase publishable key.
 
-2. **Run the deploy workflow**  
-   [Actions → Deploy to GitHub Pages](https://github.com/Timob123/TempClear/actions/workflows/deploy-pages.yml) → **Run workflow** (or push to `main`).  
-   Wait until the job is green. You should see a new **`gh-pages`** branch.
+2. **Link Pages to the workflow** — [Settings → Pages](https://github.com/Timob123/TempClear/settings/pages)  
+   - Under **Build and deployment**, click **Browse all workflows** (not Jekyll / Static HTML).  
+   - Choose **Deploy to GitHub Pages** → **Configure** (or enable if shown).  
+   - Or: [Actions](https://github.com/Timob123/TempClear/actions/workflows/deploy-pages.yml) → **Run workflow** on `main`.
 
-3. **Enable Pages** (this fixes the “There isn’t a GitHub Pages site here” 404)  
-   [Settings → Pages](https://github.com/Timob123/TempClear/settings/pages)  
-   - **Source:** Deploy from a branch  
-   - **Branch:** `gh-pages`  
-   - **Folder:** `/ (root)`  
-   - Save. After 1–2 minutes the site should load.
+3. Wait for a green run (build + deploy). The Pages settings page should then show your site URL.
 
-4. **Supabase Auth** → URL configuration  
-   - Site URL: `https://timob123.github.io/TempClear/`  
-   - Redirect URLs: `https://timob123.github.io/TempClear/**`
+4. **Supabase Auth** URLs: `https://timob123.github.io/TempClear/` and `https://timob123.github.io/TempClear/**`
 
 **Live URL:** https://timob123.github.io/TempClear/
-
-If you still see 404, confirm step 3 is saved and the latest Actions run succeeded.
 
 ### Local dev
 
